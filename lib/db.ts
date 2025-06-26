@@ -91,6 +91,18 @@ export async function getWalletByUserId(userId: string) {
   return result[0] || null
 }
 
+export async function getWalletTransactions(userId: string, limit = 20) {
+  const result = await sql`
+    SELECT 
+      id, type, amount, status, description, created_at
+    FROM wallet_transactions 
+    WHERE user_id = ${userId}
+    ORDER BY created_at DESC
+    LIMIT ${limit}
+  `
+  return result
+}
+
 export async function createListing(data: {
   userId: string
   title: string
@@ -185,8 +197,6 @@ export async function getActiveListings(
 
   params.push(limit, offset)
 
-  // run the query - Neon’s sql.query() sometimes returns { rows }
-  // and in older versions it returns the rows array directly.
   const queryResult = await sql.query(query, params as unknown[])
   const rows: any[] = Array.isArray(queryResult) ? queryResult : (queryResult as { rows: any[] }).rows
 
@@ -329,9 +339,149 @@ export async function getUserStats(userId: string) {
   }
 }
 
+export async function getUserReviews(userId: string, limit = 10) {
+  const result = await sql`
+    SELECT 
+      r.id, r.rating, r.comment, r.created_at,
+      u.name as reviewer_name, u.username as reviewer_username, u.image as reviewer_image
+    FROM reviews r
+    JOIN users u ON r.reviewer_id = u.id
+    WHERE r.reviewee_id = ${userId}
+    ORDER BY r.created_at DESC
+    LIMIT ${limit}
+  `
+  return result
+}
+
+export async function getLeaderboardData() {
+  const result = await sql`
+    SELECT 
+      u.id, u.name, u.username, u.image, u.is_verified,
+      COALESCE(SUM(t.amount - t.commission), 0) as total_sales,
+      COUNT(t.id) as listings_sold,
+      COALESCE(AVG(r.rating), 0) as average_rating,
+      CASE 
+        WHEN COALESCE(SUM(t.amount - t.commission), 0) >= 10000 THEN 'Diamond'
+        WHEN COALESCE(SUM(t.amount - t.commission), 0) >= 5000 THEN 'Gold'
+        WHEN COALESCE(SUM(t.amount - t.commission), 0) >= 1000 THEN 'Silver'
+        ELSE 'Bronze'
+      END as badge
+    FROM users u
+    LEFT JOIN transactions t ON u.id = t.seller_id AND t.escrow_status = 'RELEASED'
+    LEFT JOIN reviews r ON u.id = r.reviewee_id
+    WHERE u.is_banned = false
+    GROUP BY u.id, u.name, u.username, u.image, u.is_verified
+    HAVING COUNT(t.id) > 0
+    ORDER BY total_sales DESC
+    LIMIT 50
+  `
+
+  return result.map((row: any) => ({
+    ...row,
+    totalSales: Number.parseFloat(row.total_sales),
+    averageRating: Number.parseFloat(row.average_rating),
+  }))
+}
+
+export async function getAdminStats() {
+  const [usersResult, listingsResult, transactionsResult, revenueResult] = await Promise.all([
+    sql`
+      SELECT 
+        COUNT(*) as total_users,
+        COUNT(CASE WHEN last_login > NOW() - INTERVAL '30 days' THEN 1 END) as active_users
+      FROM users
+    `,
+    sql`
+      SELECT 
+        COUNT(*) as total_listings,
+        COUNT(CASE WHEN status = 'PENDING' THEN 1 END) as pending_listings
+      FROM listings
+    `,
+    sql`
+      SELECT 
+        COUNT(*) as total_transactions,
+        COUNT(*)::float / NULLIF(COUNT(DISTINCT listing_id), 0) * 100 as conversion_rate
+      FROM transactions
+    `,
+    sql`
+      SELECT 
+        COALESCE(SUM(commission), 0) as total_revenue
+      FROM transactions 
+      WHERE escrow_status = 'RELEASED'
+    `,
+  ])
+
+  const pendingWithdrawals = await sql`
+    SELECT COUNT(*) as pending_withdrawals
+    FROM withdrawal_requests 
+    WHERE status = 'PENDING'
+  `
+
+  return {
+    totalUsers: Number.parseInt(usersResult[0]?.total_users || "0"),
+    activeUsers: Number.parseInt(usersResult[0]?.active_users || "0"),
+    totalListings: Number.parseInt(listingsResult[0]?.total_listings || "0"),
+    pendingListings: Number.parseInt(listingsResult[0]?.pending_listings || "0"),
+    totalTransactions: Number.parseInt(transactionsResult[0]?.total_transactions || "0"),
+    conversionRate: Number.parseFloat(transactionsResult[0]?.conversion_rate || "0"),
+    totalRevenue: Number.parseFloat(revenueResult[0]?.total_revenue || "0"),
+    pendingWithdrawals: Number.parseInt(pendingWithdrawals[0]?.pending_withdrawals || "0"),
+  }
+}
+
 export async function createReferral(referrerId: string, referredUserId: string) {
   await sql`
     INSERT INTO referrals (referrer_id, referred_user_id, amount_earned, status, created_at, updated_at)
     VALUES (${referrerId}, ${referredUserId}, 0, 'PENDING', NOW(), NOW())
   `
+}
+
+// --- Transactions & withdrawals ---
+
+export async function createTransaction(data: {
+  listingId: string
+  buyerId: string
+  sellerId: string
+  amount: number
+  commission: number
+}) {
+  const [row] = await sql`
+    INSERT INTO transactions (listing_id, buyer_id, seller_id, amount, commission, escrow_status, created_at, updated_at)
+    VALUES (
+      ${data.listingId},
+      ${data.buyerId},
+      ${data.sellerId},
+      ${data.amount},
+      ${data.commission},
+      'HELD',
+      NOW(),
+      NOW()
+    )
+    RETURNING id, listing_id, buyer_id, seller_id, amount, commission, escrow_status, created_at
+  `
+  // record wallet movement for buyer – keeps balance accurate
+  await sql`
+    INSERT INTO wallet_transactions (user_id, type, amount, status, description, reference_id, created_at)
+    VALUES (${data.buyerId}, 'PURCHASE', -${data.amount}, 'COMPLETED', 'Purchase of listing', ${row.id}, NOW())
+  `
+  return row
+}
+
+export async function createWithdrawalRequest(userId: string, amount: number) {
+  const [row] = await sql`
+    INSERT INTO withdrawal_requests (user_id, amount, status, created_at, updated_at)
+    VALUES (${userId}, ${amount}, 'PENDING', NOW(), NOW())
+    RETURNING id, amount, status, created_at
+  `
+  // lock funds in wallet
+  await sql`
+    UPDATE wallets
+    SET balance = balance - ${amount}, updated_at = NOW()
+    WHERE user_id = ${userId}
+  `
+  await sql`
+    INSERT INTO wallet_transactions (user_id, type, amount, status, description, reference_id, created_at)
+    VALUES (${userId}, 'WITHDRAWAL', -${amount}, 'PENDING', 'Withdrawal request', ${row.id}, NOW())
+  `
+  return row
 }

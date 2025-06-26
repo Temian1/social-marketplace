@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (listing.status !== "ACTIVE") {
-      return NextResponse.json({ error: "Listing is not available" }, { status: 400 })
+      return NextResponse.json({ error: "Listing is not available for purchase" }, { status: 400 })
     }
 
     if (listing.userId === session.user.id) {
@@ -34,12 +34,16 @@ export async function POST(request: NextRequest) {
     const wallet = await getWalletByUserId(session.user.id)
 
     if (!wallet || wallet.balance < listing.price) {
-      return NextResponse.json({ error: "Insufficient wallet balance" }, { status: 400 })
+      return NextResponse.json(
+        {
+          error: "Insufficient wallet balance. Please add funds to your wallet first.",
+        },
+        { status: 400 },
+      )
     }
 
     // Calculate commission (10% default)
     const commission = listing.price * 0.1
-    const sellerAmount = listing.price - commission
 
     const transaction = await createTransaction({
       listingId: listing.id,

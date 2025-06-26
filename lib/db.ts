@@ -79,6 +79,7 @@ export async function createWallet(userId: string) {
   await sql`
     INSERT INTO wallets (user_id, balance, created_at, updated_at)
     VALUES (${userId}, 0, NOW(), NOW())
+    ON CONFLICT (user_id) DO NOTHING
   `
 }
 
@@ -144,13 +145,13 @@ export async function getActiveListings(
     paramIndex++
   }
 
-  if (type) {
+  if (type && type !== "ALL_TYPES") {
     whereClause += ` AND l.type = $${paramIndex}`
     params.push(type)
     paramIndex++
   }
 
-  if (niche) {
+  if (niche && niche !== "ALL_NICHES") {
     whereClause += ` AND l.niche = $${paramIndex}`
     params.push(niche)
     paramIndex++
@@ -459,11 +460,20 @@ export async function createTransaction(data: {
     )
     RETURNING id, listing_id, buyer_id, seller_id, amount, commission, escrow_status, created_at
   `
-  // record wallet movement for buyer – keeps balance accurate
+
+  // Deduct from buyer's wallet
+  await sql`
+    UPDATE wallets
+    SET balance = balance - ${data.amount}, updated_at = NOW()
+    WHERE user_id = ${data.buyerId}
+  `
+
+  // Record wallet movement for buyer
   await sql`
     INSERT INTO wallet_transactions (user_id, type, amount, status, description, reference_id, created_at)
     VALUES (${data.buyerId}, 'PURCHASE', -${data.amount}, 'COMPLETED', 'Purchase of listing', ${row.id}, NOW())
   `
+
   return row
 }
 

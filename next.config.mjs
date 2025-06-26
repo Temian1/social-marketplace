@@ -17,7 +17,11 @@ const nextConfig = {
     unoptimized: false,
   },
   experimental: {
-    serverComponentsExternalPackages: ['@neondatabase/serverless', 'bcryptjs'],
+    serverComponentsExternalPackages: [
+      '@neondatabase/serverless',
+      'bcryptjs',
+      '@radix-ui/react-switch',
+    ],
   },
 }
 

@@ -159,9 +159,12 @@ export async function getActiveListings(
 
   params.push(limit, offset)
 
-  const { rows } = await sql.query(query, params as unknown[])
+  // run the query - Neon’s sql.query() sometimes returns { rows }
+  // and in older versions it returns the rows array directly.
+  const queryResult = await sql.query(query, params as unknown[])
+  const rows: any[] = Array.isArray(queryResult) ? queryResult : (queryResult as { rows: any[] }).rows
 
-  return rows.map((row: any) => ({
+  return rows.map((row) => ({
     id: row.id,
     userId: row.user_id,
     title: row.title,

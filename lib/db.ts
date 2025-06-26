@@ -6,6 +6,32 @@ if (!process.env.DATABASE_URL) {
 
 export const sql = neon(process.env.DATABASE_URL)
 
+function safeParseScreenshots(value: unknown): string[] {
+  // 1. Already an array
+  if (Array.isArray(value)) return value as string[]
+
+  // 2. Null / undefined / empty
+  if (value === null || value === undefined) return []
+
+  // 3. Try JSON.parse if it looks like JSON
+  if (typeof value === "string") {
+    const trimmed = value.trim()
+    if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(trimmed)
+        return Array.isArray(parsed) ? parsed : [String(parsed)]
+      } catch {
+        /* fall through to wrap as single string */
+      }
+    }
+    // 4. Plain string URL – wrap as array
+    return [trimmed]
+  }
+
+  // Fallback
+  return []
+}
+
 // Database helper functions
 export async function createUser(data: {
   name: string
@@ -172,7 +198,7 @@ export async function getActiveListings(
     niche: row.niche,
     type: row.type,
     price: Number.parseFloat(row.price),
-    screenshots: JSON.parse(row.screenshots || "[]"),
+    screenshots: safeParseScreenshots(row.screenshots),
     status: row.status,
     views: row.views,
     createdAt: row.created_at,
@@ -208,7 +234,7 @@ export async function getListingById(id: string) {
     niche: row.niche,
     type: row.type,
     price: Number.parseFloat(row.price),
-    screenshots: JSON.parse(row.screenshots || "[]"),
+    screenshots: safeParseScreenshots(row.screenshots),
     status: row.status,
     views: row.views,
     createdAt: row.created_at,
@@ -235,7 +261,7 @@ export async function getUserListings(userId: string, limit = 10) {
   return result.map((row: any) => ({
     ...row,
     price: Number.parseFloat(row.price),
-    screenshots: JSON.parse(row.screenshots || "[]"),
+    screenshots: safeParseScreenshots(row.screenshots),
   }))
 }
 

@@ -8,6 +8,12 @@ import { Button } from "@/components/ui/button"
 import { formatPrice, formatDate } from "@/lib/utils"
 import Link from "next/link"
 import { Plus, Eye, DollarSign, ShoppingBag, Star } from "lucide-react"
+import type { Metadata } from "next"
+
+export const metadata: Metadata = {
+  title: "Dashboard - WhatsApp Market",
+  description: "Manage your listings, transactions, and account settings",
+}
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions)

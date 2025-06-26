@@ -3,6 +3,16 @@ import { getActiveListings } from "@/lib/db"
 import { ListingCard } from "@/components/marketplace/listing-card"
 import { SearchFilters } from "@/components/marketplace/search-filters"
 import { LoadingSpinner } from "@/components/ui/loading-spinner"
+import type { Metadata } from "next"
+
+export const metadata: Metadata = {
+  title: "Marketplace - WhatsApp Market",
+  description: "Browse and discover premium WhatsApp groups and channels across all niches",
+  openGraph: {
+    title: "Marketplace - WhatsApp Market",
+    description: "Browse and discover premium WhatsApp groups and channels across all niches",
+  },
+}
 
 export default async function MarketplacePage() {
   const listings = await getActiveListings({ limit: 20 })

@@ -3,6 +3,25 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ArrowRight, Shield, Users, Zap, MessageCircle } from "lucide-react"
+import type { Metadata } from "next"
+
+export const metadata: Metadata = {
+  title: "WhatsApp Market - Buy & Sell WhatsApp Groups",
+  description:
+    "The premier marketplace for buying and selling WhatsApp groups and channels. Secure transactions, verified sellers, instant delivery.",
+  openGraph: {
+    title: "WhatsApp Market - Buy & Sell WhatsApp Groups",
+    description: "The premier marketplace for buying and selling WhatsApp groups and channels.",
+    images: [
+      {
+        url: "/og-image.jpg",
+        width: 1200,
+        height: 630,
+        alt: "WhatsApp Market",
+      },
+    ],
+  },
+}
 
 export default function HomePage() {
   const features = [

@@ -7,17 +7,17 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   images: {
-    domains: ['localhost', 'placeholder.svg'],
+    domains: ['localhost', 'placeholder.svg', 'images.unsplash.com'],
     remotePatterns: [
       {
         protocol: 'https',
         hostname: '**',
       },
     ],
-    unoptimized: true,
+    unoptimized: false,
   },
   experimental: {
-    serverComponentsExternalPackages: ['@prisma/client', 'bcryptjs'],
+    serverComponentsExternalPackages: ['@neondatabase/serverless', 'bcryptjs'],
   },
 }
 

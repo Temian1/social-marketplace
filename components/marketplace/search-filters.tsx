@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
 
 interface SearchFiltersProps {
-  onFiltersChange: (filters: any) => void
+  onFiltersChange?: (filters: any) => void
 }
 
 export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
@@ -47,7 +47,7 @@ export function SearchFilters({ onFiltersChange }: SearchFiltersProps) {
   ].filter(Boolean)
 
   const handleSearch = () => {
-    onFiltersChange({
+    onFiltersChange?.({
       search: searchQuery,
       type: selectedType,
       niche: selectedNiche,

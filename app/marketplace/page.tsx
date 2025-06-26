@@ -15,7 +15,7 @@ export default async function MarketplacePage() {
       </div>
 
       <div className="mb-8">
-        <SearchFilters onFiltersChange={(filters) => console.log(filters)} />
+        <SearchFilters />
       </div>
 
       <Suspense
